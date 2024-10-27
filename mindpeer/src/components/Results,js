@@ -1,0 +1,122 @@
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { Card, CardHeader, CardContent } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+
+const App = () => {
+  const [userInput, setUserInput] = useState('');
+  const [analysis, setAnalysis] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetchHistory();
+  }, []);
+
+  const fetchHistory = async () => {
+    try {
+      const response = await axios.get('http://localhost:5000/history');
+      setHistory(response.data);
+    } catch (error) {
+      setError('Failed to fetch history');
+      console.error("Error fetching history:", error);
+    }
+  };
+
+  const analyzeText = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await axios.post('http://localhost:5000/analyze', {
+        text: userInput
+      });
+      setAnalysis(response.data);
+      await fetchHistory(); // Refresh history after new analysis
+    } catch (error) {
+      setError('Failed to analyze text. Please try again.');
+      console.error("Error analyzing text:", error);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="container mx-auto p-4 max-w-2xl">
+      <Card className="mb-6">
+        <CardHeader>
+          <h1 className="text-2xl font-bold text-center">Mental Health Concern Analyzer</h1>
+        </CardHeader>
+        <CardContent>
+          <Textarea
+            placeholder="Type your thoughts here..."
+            value={userInput}
+            onChange={(e) => setUserInput(e.target.value)}
+            className="mb-4"
+            rows={4}
+          />
+          <Button 
+            onClick={analyzeText}
+            disabled={loading || !userInput.trim()}
+            className="w-full"
+          >
+            {loading ? "Analyzing..." : "Analyze"}
+          </Button>
+          
+          {error && (
+            <Alert variant="destructive" className="mt-4">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {analysis && (
+            <div className="mt-6">
+              <h2 className="text-xl font-semibold mb-4">Analysis Results</h2>
+              <div className="space-y-2">
+                <p><strong>Polarity:</strong> {analysis.polarity.label} ({analysis.polarity.score.toFixed(2)})</p>
+                <p><strong>Concerns:</strong> {analysis.concerns.join(', ') || 'None detected'}</p>
+                <p><strong>Intensity:</strong> {analysis.intensity}</p>
+                
+                {analysis.timeline && (
+                  <div className="mt-4">
+                    <h3 className="text-lg font-semibold mb-2">Timeline</h3>
+                    {analysis.timeline.map((entry, index) => (
+                      <p key={index} className="ml-4">
+                        <strong>Day {entry.day}:</strong> {entry.description}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {history.length > 0 && (
+        <Card>
+          <CardHeader>
+            <h2 className="text-xl font-bold">Analysis History</h2>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {history.map((entry, index) => (
+                <div key={index} className="border-b pb-4 last:border-b-0">
+                  <p className="text-sm text-gray-500">
+                    {new Date(entry.timestamp).toLocaleString()}
+                  </p>
+                  <p className="mt-2"><strong>Text:</strong> {entry.original_text}</p>
+                  <p><strong>Polarity:</strong> {entry.polarity.label}</p>
+                  <p><strong>Concerns:</strong> {entry.concerns.join(', ') || 'None'}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+};
+
+export default App;
